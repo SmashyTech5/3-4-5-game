@@ -1,0 +1,2 @@
+E:\SmashTech\Cubicon\Cubicon\cubic\cubic\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\CMakeLists.txt
+E:\SmashTech\Cubicon\Cubicon\cubic\cubic\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\GameActivity\CMakeLists.txt
