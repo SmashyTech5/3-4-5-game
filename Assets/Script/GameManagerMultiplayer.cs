@@ -76,6 +76,9 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
     private int activeEndIndex;               // inclusive end index
     private int maxBallsPerRodGlobal;         // full height (largest round size), arrays Y dimension
     private int currentRoundHeight;           // allowed stacking height for the current round
+                                             // helper for clarity
+ private int RoundCap(int size) => size * size * size;
+
 
     PhotonView pv;
 
@@ -486,9 +489,8 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
             PhotonNetwork.RemoveRPCs(pv);
             // Hide last-move panel on all clients (defensive)
             pv.RPC(nameof(RPC_HideLastMovePanel), RpcTarget.AllBuffered);
-            // Tell all clients to start the next round
+            // Tell all clients to start the next round (⚡ beads stay, move counts carry over)
             pv.RPC(nameof(RPC_StartRound), RpcTarget.AllBuffered, currentRoundIndex);
-           
         }
         else
         {
@@ -499,6 +501,7 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
             pv.RPC(nameof(RPC_GameOver), RpcTarget.All, result);
         }
     }
+
 
     // ---------- Local visual/cascade routine executed on every client via RPC_BlinkAndDestroy ----------
     /*  IEnumerator BlinkAndDestroy_Local(List<Vector3Int> positions)
@@ -859,9 +862,6 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
         // reset per-round flag
         lastTwoTurnsShown = false;
 
-        // ❌ DO NOT clear board or reset arrays — we want beads to persist
-        // ClearBoard();
-
         // current active grid size (3,4,5…)
         activeGridSize = roundSizes[currentRoundIndex];
         currentRoundHeight = roundSizes[currentRoundIndex];
@@ -875,8 +875,48 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
         gridSize = maxGridSize;
         maxBallsPerRod = maxBallsPerRodGlobal;
 
-        totalBeats = activeGridSize * activeGridSize * currentRoundHeight;
+        // ===== Set the per-round target (size^3). =====
+        // IMPORTANT: do NOT reset usedBeats here — it carries over across rounds.
+        totalBeats = activeGridSize * activeGridSize * activeGridSize;
+
+        // ===== Recompute usedBeats from the authoritative board =====
         usedBeats = 0;
+        for (int x = 0; x < maxGridSize; x++)
+        {
+            for (int y = 0; y < maxBallsPerRod; y++)
+            {
+                for (int z = 0; z < maxGridSize; z++)
+                {
+                    if (board[x, y, z] != 0) usedBeats++;
+                }
+            }
+        }
+
+        // If we are already at "last two turns", show the popup
+        if (!lastTwoTurnsShown && usedBeats == totalBeats - 2)
+        {
+            lastTwoTurnsShown = true;
+            if (PhotonNetwork.InRoom && PhotonNetwork.IsMasterClient)
+                pv.RPC(nameof(RPC_ShowLastMovePanel), RpcTarget.AllBuffered, currentRoundIndex);
+            else
+                ShowLastMovePanelLocal(currentRoundIndex);
+        }
+
+        // If we've already reached (or exceeded) the new round's cap, end it immediately.
+        if (usedBeats >= totalBeats)
+        {
+            if (PhotonNetwork.InRoom)
+            {
+                if (PhotonNetwork.IsMasterClient)
+                    StartCoroutine(EndRoundRoutine_Server());
+                // otherwise wait for master to handle it
+            }
+            else
+            {
+                StartCoroutine(EndRoundRoutine());
+            }
+            return;
+        }
 
         if (!baseObject) return;
         Renderer baseRenderer = baseObject.GetComponent<Renderer>();
@@ -933,13 +973,22 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
 
                 rods[x, z].Setup(this, x, z);
 
-                // ✅ Only activate rods in the central playable area
+                // Normal lock/unlock logic
                 bool activeCell = (x >= activeStartIndex && x <= activeEndIndex &&
                                    z >= activeStartIndex && z <= activeEndIndex);
 
-                rods[x, z].gameObject.SetActive(true);
-                rods[x, z].SetInteractable(activeCell);
-                rods[x, z].SetHighlighted(activeCell);
+                if (activeCell)
+                {
+                    rods[x, z].gameObject.SetActive(true);
+                    rods[x, z].SetInteractable(true);
+                    rods[x, z].SetHighlighted(true);
+                }
+                else
+                {
+                    rods[x, z].gameObject.SetActive(true);
+                    rods[x, z].SetInteractable(false);
+                    rods[x, z].SetHighlighted(false);
+                }
             }
         }
 
@@ -948,7 +997,6 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
         UpdateTurnUI(currentPlayerId);
         UpdateScoreUI();
     }
-
 
 
     void ClearBoard()

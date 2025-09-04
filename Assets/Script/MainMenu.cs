@@ -49,6 +49,7 @@ public class MainMenu : MonoBehaviourPunCallbacks
         if (!PlayerPrefs.HasKey("PlayerCoins"))
         {
             PlayerPrefs.SetInt("PlayerCoins", 1000); // first time bonus
+            PlayerPrefs.Save();  // 👈 make sure it writes
         }
         playerCoins = PlayerPrefs.GetInt("PlayerCoins");
         UpdateCoinsUI();
@@ -242,38 +243,48 @@ public class MainMenu : MonoBehaviourPunCallbacks
 
     public void OnWatchAdForCoinsButton()
     {
-        if (Application.internetReachability == NetworkReachability.NotReachable)
-        {
-            Debug.LogWarning("No internet connection. Cannot show ad.");
+        // 💰 Add 100 coins instantly for testing
+        playerCoins += 100;
+        PlayerPrefs.SetInt("PlayerCoins", playerCoins);
+        PlayerPrefs.Save();
+        UpdateCoinsUI();
 
-            // Close the "Not Enough Coins" popup if it's open
-            if (notEnoughCoinsPopup != null)
-                notEnoughCoinsPopup.SetActive(false);
+        if (notEnoughCoinsPopup != null)
+            notEnoughCoinsPopup.SetActive(false);
 
-            // Show the "No Internet" popup
-            if (noInternetPopup != null)
-                noInternetPopup.SetActive(true);
+        Debug.Log("Test: Player rewarded with 100 coins!");
+        /* if (Application.internetReachability == NetworkReachability.NotReachable)
+         {
+             Debug.LogWarning("No internet connection. Cannot show ad.");
 
-            return;
-        }
+             // Close the "Not Enough Coins" popup if it's open
+             if (notEnoughCoinsPopup != null)
+                 notEnoughCoinsPopup.SetActive(false);
 
-        // Player has internet → try to show rewarded ad
-        AdManager.Instance.ShowRewardedAdvertisement(() =>
-        {
-            playerCoins += 50;
-            PlayerPrefs.SetInt("PlayerCoins", playerCoins);
-            PlayerPrefs.Save();
-            UpdateCoinsUI();
+             // Show the "No Internet" popup
+             if (noInternetPopup != null)
+                 noInternetPopup.SetActive(true);
 
-            if (notEnoughCoinsPopup != null)
-                notEnoughCoinsPopup.SetActive(false);
+             return;
+         }
 
-            Debug.Log("Player rewarded with 50 coins!");
-        },
-        () =>
-        {
-            Debug.LogWarning("Rewarded ad not ready yet!");
-        });
+         // Player has internet → try to show rewarded ad
+         AdManager.Instance.ShowRewardedAdvertisement(() =>
+         {
+             playerCoins += 50;
+             PlayerPrefs.SetInt("PlayerCoins", playerCoins);
+             PlayerPrefs.Save();
+             UpdateCoinsUI();
+
+             if (notEnoughCoinsPopup != null)
+                 notEnoughCoinsPopup.SetActive(false);
+
+             Debug.Log("Player rewarded with 50 coins!");
+         },
+         () =>
+         {
+             Debug.LogWarning("Rewarded ad not ready yet!");
+         });*/
     }
 
     public void OnBackButton()

@@ -1,0 +1,5 @@
+E:/SmashTech/3-4-5-game/.utmp/RelWithDebInfo/6p4q6m3t/armeabi-v7a/CMakeFiles/edit_cache.dir
+E:/SmashTech/3-4-5-game/.utmp/RelWithDebInfo/6p4q6m3t/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+E:/SmashTech/3-4-5-game/.utmp/RelWithDebInfo/6p4q6m3t/armeabi-v7a/GameActivity/CMakeFiles/game.dir
+E:/SmashTech/3-4-5-game/.utmp/RelWithDebInfo/6p4q6m3t/armeabi-v7a/GameActivity/CMakeFiles/edit_cache.dir
+E:/SmashTech/3-4-5-game/.utmp/RelWithDebInfo/6p4q6m3t/armeabi-v7a/GameActivity/CMakeFiles/rebuild_cache.dir

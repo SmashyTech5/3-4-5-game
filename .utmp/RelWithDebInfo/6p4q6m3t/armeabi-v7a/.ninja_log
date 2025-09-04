@@ -1,0 +1,10 @@
+# ninja log v5
+82	9300	7786160464322702	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	70b95e3d581188c3
+68	9829	7786160469420780	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	45eac09316dc4609
+1	10185	7786160474800066	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	20d65e96ca89bb00
+42	10492	7786160479301291	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	871b7accaff6f4b6
+55	11297	7786160487522707	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	fdfedb9972ae2fd0
+28	11881	7786160493299712	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	1c05fa89f76b7a47
+9830	14371	7786160518378993	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	4be0c62ff516929e
+9600	14816	7786160522873648	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	20e7b6facfb768e0
+14818	15120	7786160526020177	E:/SmashTech/3-4-5-game/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/6p4q6m3t/obj/armeabi-v7a/libgame.so	c9621fe77dde0c40
