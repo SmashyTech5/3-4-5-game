@@ -287,8 +287,8 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
     [PunRPC]
     void RPC_UpdateScores(int p1, int p2)
     {
-        player1Score = p1;
-        player2Score = p2;
+        totalPlayer1Score = p1;
+        totalPlayer2Score = p2;
         UpdateScoreUI();
     }
 
@@ -425,48 +425,42 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
       }
   */
 
+    // ------------ SERVER AFTER PLACE ------------
+
     IEnumerator ServerAfterPlaceRoutine(int placingPlayerId, int placedX, int placedY, int placedZ)
     {
         isTurnLocked = true;
-
-        // Small delay so everyone sees the drop animation (optional)
         yield return new WaitForSeconds(0.25f);
 
         Vector3Int placedPos = new Vector3Int(placedX, placedY, placedZ);
 
-        // Check all matches for this player
         var matchedPositions = GetWinningPositions(placingPlayerId);
 
         if (matchedPositions != null && matchedPositions.Contains(placedPos))
         {
-            // ✅ Only score if the placed bead is actually inside a winning line
-            if (placingPlayerId == 1) player1Score++;
-            else player2Score++;
+            if (placingPlayerId == 1) totalPlayer1Score++;
+            else totalPlayer2Score++;
 
             lastScoredPlayerId = placingPlayerId;
 
-            Debug.Log($"Player {placingPlayerId} scored at {placedPos}! P1={player1Score}, P2={player2Score}");
+            Debug.Log($"Player {placingPlayerId} scored at {placedPos}! " +
+                      $"Totals -> P1={totalPlayer1Score}, P2={totalPlayer2Score}");
         }
 
-        // Send updated scores to all clients
-        pv.RPC(nameof(RPC_UpdateScores), RpcTarget.AllBuffered, player1Score, player2Score);
+        pv.RPC(nameof(RPC_UpdateScores), RpcTarget.AllBuffered, totalPlayer1Score, totalPlayer2Score);
 
-        // BEFORE switching turn: if the round now has exactly 2 moves remaining
         if (!lastTwoTurnsShown && usedBeats == totalBeats - 2)
         {
             lastTwoTurnsShown = true;
             pv.RPC(nameof(RPC_ShowLastMovePanel), RpcTarget.AllBuffered, currentRoundIndex);
         }
 
-        // Switch turns
         currentPlayerId = (currentPlayerId == 1) ? 2 : 1;
         isTurnLocked = false;
         pv.RPC(nameof(RPC_SetTurn), RpcTarget.All, currentPlayerId);
 
-        // Reset scorer tracking
         lastScoredPlayerId = -1;
 
-        // End round if all beads used
         if (usedBeats >= totalBeats)
         {
             StartCoroutine(EndRoundRoutine_Server());
@@ -475,32 +469,33 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
 
 
 
+
+    // ------------ END ROUND SERVER ------------
+
     IEnumerator EndRoundRoutine_Server()
     {
         yield return new WaitForSeconds(0.5f);
 
-        totalPlayer1Score += player1Score;
-        totalPlayer2Score += player2Score;
-
         currentRoundIndex++;
         if (currentRoundIndex < roundSizes.Length)
         {
-            // Clear buffered RPCs (avoid old spawns replaying for late joiners)
             PhotonNetwork.RemoveRPCs(pv);
-            // Hide last-move panel on all clients (defensive)
             pv.RPC(nameof(RPC_HideLastMovePanel), RpcTarget.AllBuffered);
-            // Tell all clients to start the next round (⚡ beads stay, move counts carry over)
             pv.RPC(nameof(RPC_StartRound), RpcTarget.AllBuffered, currentRoundIndex);
         }
         else
         {
             string result;
-            if (totalPlayer1Score > totalPlayer2Score) result = $"Player 1 Wins! {totalPlayer1Score} - {totalPlayer2Score}";
-            else if (totalPlayer2Score > totalPlayer1Score) result = $"Player 2 Wins! {totalPlayer2Score} - {totalPlayer1Score}";
-            else result = $"It's a Tie! {totalPlayer1Score} - {totalPlayer2Score}";
+            if (totalPlayer1Score > totalPlayer2Score)
+                result = $"Player 1 Wins! {totalPlayer1Score} - {totalPlayer2Score}";
+            else if (totalPlayer2Score > totalPlayer1Score)
+                result = $"Player 2 Wins! {totalPlayer2Score} - {totalPlayer1Score}";
+            else
+                result = $"It's a Tie! {totalPlayer1Score} - {totalPlayer2Score}";
             pv.RPC(nameof(RPC_GameOver), RpcTarget.All, result);
         }
     }
+
 
 
     // ---------- Local visual/cascade routine executed on every client via RPC_BlinkAndDestroy ----------
@@ -571,13 +566,13 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
                 flat.Add(p.z);
             }
 
-            // Increase score FOR the scoring player
-            if (scoringPlayer == 1) player1Score++;
-            else player2Score++;
+            // Increase cumulative score FOR the scoring player
+            if (scoringPlayer == 1) totalPlayer1Score++;
+            else totalPlayer2Score++;
 
             // Broadcast to all clients to blink/destroy these positions
             pv.RPC(nameof(RPC_BlinkAndDestroy), RpcTarget.AllBuffered, flat.ToArray());
-            pv.RPC(nameof(RPC_UpdateScores), RpcTarget.AllBuffered, player1Score, player2Score);
+            pv.RPC(nameof(RPC_UpdateScores), RpcTarget.AllBuffered, totalPlayer1Score, totalPlayer2Score);
 
             // Wait until blink+drop finishes before re-checking
             yield return new WaitForSeconds(0.7f);
@@ -585,8 +580,6 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
             // Re-check board again for the same scoring player
             newMatches = GetWinningPositions(scoringPlayer);
         }
-
-       
     }
 
 
@@ -642,6 +635,10 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
     }
 
     // ---------- Your existing placement/match code (adapted to allow passing placingPlayerId for offline fallback) ----------
+    // ------------ OFFLINE / LOCAL DROP ------------
+
+    // ------------ OFFLINE / LOCAL DROP ------------
+
     IEnumerator DropAndMatchRoutine(GameObject ball, Vector3 targetPos, int placingPlayerId)
     {
         yield return StartCoroutine(DropBall(ball, targetPos));
@@ -650,13 +647,13 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
         var matchedPositions = GetWinningPositions(placingPlayerId);
         if (matchedPositions != null && matchedPositions.Count > 0)
         {
-            if (placingPlayerId == 1) player1Score++;
-            else player2Score++;
+            if (placingPlayerId == 1) totalPlayer1Score++;
+            else totalPlayer2Score++;
 
+            UpdateScoreUI();
             yield return StartCoroutine(BlinkAndDestroy_Local(matchedPositions));
         }
 
-        // If the round now has exactly 2 moves left (remaining == 2), show popup (offline)
         if (!lastTwoTurnsShown && usedBeats == totalBeats - 2)
         {
             lastTwoTurnsShown = true;
@@ -672,6 +669,8 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
         currentPlayerId = (currentPlayerId == 1) ? 2 : 1;
         isTurnLocked = false;
     }
+
+
 
 
     IEnumerator DropBall(GameObject ball, Vector3 targetPos)
@@ -798,14 +797,12 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
 
 
 
+    // ------------ END ROUND OFFLINE ------------
+
     IEnumerator EndRoundRoutine()
     {
         yield return new WaitForSeconds(0.5f);
 
-        totalPlayer1Score += player1Score;
-        totalPlayer2Score += player2Score;
-
-        // Hide the last move panel at round end (works both online/offline)
         if (lastMovePanel != null)
             lastMovePanel.SetActive(false);
 
@@ -827,6 +824,7 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
             DeclareWinner();
         }
     }
+
 
 
     void DeclareWinner()
@@ -1213,17 +1211,17 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
 
         if (localPlayerId == 1)
         {
-            // I am Player 1 → right side is me
-            opponentScoreText.text = player1Score.ToString(); // my side (right)
-            playerScoreText.text = player2Score.ToString();   // opponent side (left)
+            opponentScoreText.text = totalPlayer1Score.ToString(); // my side (right)
+            playerScoreText.text = totalPlayer2Score.ToString();   // opponent side (left)
         }
         else
         {
-            // I am Player 2 → right side is me
-            opponentScoreText.text = player2Score.ToString(); // my side (right)
-            playerScoreText.text = player1Score.ToString();   // opponent side (left)
+            opponentScoreText.text = totalPlayer2Score.ToString(); // my side (right)
+            playerScoreText.text = totalPlayer1Score.ToString();   // opponent side (left)
         }
     }
+
+
 
 
 }
