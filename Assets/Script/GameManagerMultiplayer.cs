@@ -316,6 +316,7 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
         if (result.Contains("Tie"))
         {
             if (tieImage) tieImage.SetActive(true);
+            AudioManager.Instance.PlayTie(); // 🔊 tie sound
 
             // Refund both players
             coins += pot / 2;
@@ -333,6 +334,7 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
             if (localIsWinner)
             {
                 if (youWinImage) youWinImage.SetActive(true);
+                AudioManager.Instance.PlayWin(); // 🔊 win sound
 
                 // Winner gets full pot
                 coins += pot;
@@ -341,6 +343,7 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
             else
             {
                 if (youLoseImage) youLoseImage.SetActive(true);
+                AudioManager.Instance.PlayLose(); // 🔊 lose sound
                 // Loser gets nothing
             }
         }
@@ -445,6 +448,8 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
 
             Debug.Log($"Player {placingPlayerId} scored at {placedPos}! " +
                       $"Totals -> P1={totalPlayer1Score}, P2={totalPlayer2Score}");
+            AudioManager.Instance.PlayScore();   // 🔊 play match sound on cascade too
+
         }
 
         pv.RPC(nameof(RPC_UpdateScores), RpcTarget.AllBuffered, totalPlayer1Score, totalPlayer2Score);
@@ -649,6 +654,7 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
         {
             if (placingPlayerId == 1) totalPlayer1Score++;
             else totalPlayer2Score++;
+            AudioManager.Instance.PlayScore();
 
             UpdateScoreUI();
             yield return StartCoroutine(BlinkAndDestroy_Local(matchedPositions));
@@ -728,73 +734,74 @@ public class GameManagerMultiplayer : MonoBehaviourPunCallbacks
 
 
 
-    private List<Vector3Int> GetWinningPositions(int playerId)
-    {
-        List<Vector3Int> allMatches = new List<Vector3Int>();
-        int requiredLength = currentRoundHeight; // number of beads in a winning line for this round
+     private List<Vector3Int> GetWinningPositions(int playerId)
+      {
+          List<Vector3Int> allMatches = new List<Vector3Int>();
+          int requiredLength = currentRoundHeight; // number of beads in a winning line for this round
 
-        Vector3Int[] directions = new Vector3Int[]
-        {
-        new Vector3Int(1, 0, 0),   // X
-        new Vector3Int(0, 0, 1),   // Z
-        new Vector3Int(0, 1, 0),   // Y
-        new Vector3Int(1, 0, 1),   // Diagonal XZ down-right
-        new Vector3Int(1, 0, -1)   // Diagonal XZ down-left
-        };
+          Vector3Int[] directions = new Vector3Int[]
+          {
+          new Vector3Int(1, 0, 0),   // X
+          new Vector3Int(0, 0, 1),   // Z
+          new Vector3Int(0, 1, 0),   // Y
+          new Vector3Int(1, 0, 1),   // Diagonal XZ down-right
+          new Vector3Int(1, 0, -1)   // Diagonal XZ down-left
+          };
 
-        // Limits: we only check start positions that are within the active subgrid and Y within [0,currentRoundHeight-1]
-        int minX = activeStartIndex;
-        int maxX = activeEndIndex;
-        int minZ = activeStartIndex;
-        int maxZ = activeEndIndex;
-        int minY = 0;
-        int maxY = currentRoundHeight - 1;
+          // Limits: we only check start positions that are within the active subgrid and Y within [0,currentRoundHeight-1]
+          int minX = activeStartIndex;
+          int maxX = activeEndIndex;
+          int minZ = activeStartIndex;
+          int maxZ = activeEndIndex;
+          int minY = 0;
+          int maxY = currentRoundHeight - 1;
 
-        foreach (var dir in directions)
-        {
-            int startXMin = minX;
-            int startXMax = maxX - (dir.x == 1 ? (requiredLength - 1) : 0);
-            int startZMin = minZ;
-            int startZMax = maxZ - (dir.z == 1 ? (requiredLength - 1) : (dir.z == -1 ? 0 : 0));
-            int startYMin = minY;
-            int startYMax = maxY - (dir.y == 1 ? (requiredLength - 1) : 0);
+          foreach (var dir in directions)
+          {
+              int startXMin = minX;
+              int startXMax = maxX - (dir.x == 1 ? (requiredLength - 1) : 0);
+              int startZMin = minZ;
+              int startZMax = maxZ - (dir.z == 1 ? (requiredLength - 1) : (dir.z == -1 ? 0 : 0));
+              int startYMin = minY;
+              int startYMax = maxY - (dir.y == 1 ? (requiredLength - 1) : 0);
 
-            for (int sx = startXMin; sx <= startXMax; sx++)
-            {
-                for (int sy = startYMin; sy <= startYMax; sy++)
-                {
-                    for (int sz = startZMin; sz <= startZMax; sz++)
-                    {
-                        List<Vector3Int> match = new List<Vector3Int>();
-                        bool ok = true;
-                        for (int step = 0; step < requiredLength; step++)
-                        {
-                            int nx = sx + dir.x * step;
-                            int ny = sy + dir.y * step;
-                            int nz = sz + dir.z * step;
+              for (int sx = startXMin; sx <= startXMax; sx++)
+              {
+                  for (int sy = startYMin; sy <= startYMax; sy++)
+                  {
+                      for (int sz = startZMin; sz <= startZMax; sz++)
+                      {
+                          List<Vector3Int> match = new List<Vector3Int>();
+                          bool ok = true;
+                          for (int step = 0; step < requiredLength; step++)
+                          {
+                              int nx = sx + dir.x * step;
+                              int ny = sy + dir.y * step;
+                              int nz = sz + dir.z * step;
 
-                            if (nx < minX || nx > maxX || nz < minZ || nz > maxZ || ny < minY || ny > maxY)
-                            {
-                                ok = false; break;
-                            }
+                              if (nx < minX || nx > maxX || nz < minZ || nz > maxZ || ny < minY || ny > maxY)
+                              {
+                                  ok = false; break;
+                              }
 
-                            if (board[nx, ny, nz] != playerId)
-                            {
-                                ok = false; break;
-                            }
-                            match.Add(new Vector3Int(nx, ny, nz));
-                        }
-                        if (ok && match.Count == requiredLength)
-                            allMatches.AddRange(match);
-                    }
-                }
-            }
-        }
+                              if (board[nx, ny, nz] != playerId)
+                              {
+                                  ok = false; break;
+                              }
+                              match.Add(new Vector3Int(nx, ny, nz));
+                          }
+                          if (ok && match.Count == requiredLength)
+                              allMatches.AddRange(match);
+                      }
+                  }
+              }
+          }
 
-        return allMatches.Count > 0 ? allMatches : null;
-    }
+          return allMatches.Count > 0 ? allMatches : null;
+      }
 
-
+  
+ 
 
 
     // ------------ END ROUND OFFLINE ------------
