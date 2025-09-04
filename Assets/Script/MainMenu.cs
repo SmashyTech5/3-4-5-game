@@ -25,6 +25,8 @@ public class MainMenu : MonoBehaviourPunCallbacks
     [Header("Scenes")]
     public string multiplayerSceneName = "MultiplayerMode";
     public string aiSceneName = "AiMode";
+    public string pvpSceneName = "PVP"; // assign in inspector
+
 
     [Header("Room")]
     public byte maxPlayersPerRoom = 2;
@@ -277,6 +279,48 @@ public class MainMenu : MonoBehaviourPunCallbacks
              Debug.LogWarning("Rewarded ad not ready yet!");
          });
     }
+    // Assign this to your NEW button in the Inspector
+    public void OnPvpButton()
+    {
+        // 🔹 Check coins first
+        if (playerCoins < 100)
+        {
+            if (notEnoughCoinsPopup != null) notEnoughCoinsPopup.SetActive(true);
+            return;
+        }
+
+        // 🔹 Check internet
+        if (Application.internetReachability == NetworkReachability.NotReachable)
+        {
+            if (noInternetPopup != null) noInternetPopup.SetActive(true);
+            return;
+        }
+
+        // 🔹 Continue with Photon flow
+        SetStatus("Connecting to server...");
+        if (loadingPanel != null) loadingPanel.SetActive(true);
+
+        isSearchingForRoom = true;
+
+        // Temporarily change the scene name before we connect
+        multiplayerSceneName = pvpSceneName;
+
+        if (PhotonNetwork.IsConnected)
+            PhotonNetwork.JoinRandomRoom();
+        else
+            PhotonNetwork.ConnectUsingSettings();
+    }
+    public override void OnPlayerLeftRoom(Player otherPlayer)
+    {
+        SetStatus($"Player left. Waiting for new player... ({PhotonNetwork.CurrentRoom.PlayerCount}/{maxPlayersPerRoom})");
+
+        // If still at least 2 players, continue
+        if (PhotonNetwork.CurrentRoom.PlayerCount >= maxPlayersPerRoom)
+        {
+            CheckPlayersInRoom();
+        }
+    }
+
 
     public void OnBackButton()
     {

@@ -48,6 +48,11 @@ MonoBehaviour:
   - RPC_UpdateScores
   - RPC_HideLastMovePanel
   - RPC_ShowLastMovePanel
+  - RPC_ConfirmPlaceBall
+  - RPC_DeclareWinner
+  - RPC_MoveBallTo
+  - RPC_RejectRequest
+  - RPC_SwitchTurn
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 1
