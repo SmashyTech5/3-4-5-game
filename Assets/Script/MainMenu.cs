@@ -243,17 +243,8 @@ public class MainMenu : MonoBehaviourPunCallbacks
 
     public void OnWatchAdForCoinsButton()
     {
-        // 💰 Add 100 coins instantly for testing
-        playerCoins += 100;
-        PlayerPrefs.SetInt("PlayerCoins", playerCoins);
-        PlayerPrefs.Save();
-        UpdateCoinsUI();
-
-        if (notEnoughCoinsPopup != null)
-            notEnoughCoinsPopup.SetActive(false);
-
-        Debug.Log("Test: Player rewarded with 100 coins!");
-        /* if (Application.internetReachability == NetworkReachability.NotReachable)
+       
+        if (Application.internetReachability == NetworkReachability.NotReachable)
          {
              Debug.LogWarning("No internet connection. Cannot show ad.");
 
@@ -284,7 +275,7 @@ public class MainMenu : MonoBehaviourPunCallbacks
          () =>
          {
              Debug.LogWarning("Rewarded ad not ready yet!");
-         });*/
+         });
     }
 
     public void OnBackButton()
