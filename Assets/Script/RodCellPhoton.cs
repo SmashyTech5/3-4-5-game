@@ -34,7 +34,6 @@ public class RodCellPhoton : MonoBehaviour
             Renderer r = temp.GetComponent<Renderer>();
             ballHeight = (r != null) ? r.bounds.size.y : 0.2f;
             ballHeight += spacingPadding;
-
             Destroy(temp);
         }
         else
@@ -42,30 +41,58 @@ public class RodCellPhoton : MonoBehaviour
             ballHeight = 0.2f;
         }
 
-        maxBalls = manager.maxBallsPerRod;
+        // Force rod to accept manager's configured number
+        maxBalls = (manager != null) ? manager.maxBallsPerRod : maxBalls;
         originalScale = transform.localScale;
 
-        // ✅ Correct rod height
-        float targetHeight = maxBalls * ballHeight;
-        transform.localScale = new Vector3(originalScale.x, targetHeight, originalScale.z);
-
-        // ✅ Reposition so bottom stays on the base
+        // Determine current renderer height (world space) with original scale
         Renderer rodRenderer = GetComponent<Renderer>();
-        float rodBottom = rodRenderer.bounds.min.y;
-        float baseTopY = manager.baseObject.GetComponent<Renderer>().bounds.max.y;
-        float offset = baseTopY - rodBottom;
-        transform.position += Vector3.up * offset;
+        float originalWorldHeight = (rodRenderer != null) ? rodRenderer.bounds.size.y : 1f;
+        if (originalWorldHeight <= 0.0001f) originalWorldHeight = 1f;
+
+        // Desired world height = maxBalls * ballHeight
+        float desiredWorldHeight = maxBalls * ballHeight;
+
+        // Compute scale multiplier that makes renderer.bounds.size.y == desiredWorldHeight
+        float scaleMultiplierY = desiredWorldHeight / originalWorldHeight;
+
+        // Apply new localScale preserving X/Z multiplier
+        transform.localScale = new Vector3(originalScale.x, originalScale.y * scaleMultiplierY, originalScale.z);
+
+        // Position rod on top of base (recompute bounds after scale change)
+        if (rodRenderer != null && manager != null && manager.baseObject != null)
+        {
+            // Recompute renderer after scale change by grabbing updated bounds
+            rodRenderer = GetComponent<Renderer>();
+            float baseTopY = manager.baseObject.GetComponent<Renderer>().bounds.max.y;
+            float currentBottomY = rodRenderer.bounds.min.y;
+            float offset = baseTopY - currentBottomY;
+            transform.position += Vector3.up * offset;
+        }
     }
+
 
     public Vector3 GetSpawnPosition(int yIndex)
     {
         Renderer rodRenderer = GetComponent<Renderer>();
-        float rodBottomY = rodRenderer.bounds.min.y;
+        float rodBottomY;
+
+        if (rodRenderer != null)
+        {
+            // Use renderer bounds (world space) for bottom
+            rodBottomY = rodRenderer.bounds.min.y;
+        }
+        else
+        {
+            // Fallback: use transform.position as center and originalScale estimate
+            rodBottomY = transform.position.y - (transform.localScale.y * 0.5f);
+        }
 
         // place bead centers evenly spaced from bottom to top
         float yOffset = (yIndex + 0.5f) * ballHeight;
         return new Vector3(transform.position.x, rodBottomY + yOffset, transform.position.z);
     }
+
 
     public static void StartSmoothDropStatic(Transform ballTransform, Vector3 target)
     {
@@ -101,16 +128,28 @@ public class RodCellPhoton : MonoBehaviour
         if (maxBalls != manager.maxBallsPerRod)
         {
             maxBalls = manager.maxBallsPerRod;
-            float targetHeight = maxBalls * ballHeight;
-            transform.localScale = new Vector3(originalScale.x, targetHeight, originalScale.z);
 
             Renderer rodRenderer = GetComponent<Renderer>();
-            float rodBottom = rodRenderer.bounds.min.y;
-            float baseTopY = manager.baseObject.GetComponent<Renderer>().bounds.max.y;
-            float offset = baseTopY - rodBottom;
-            transform.position += Vector3.up * offset;
+            float originalWorldHeight = (rodRenderer != null) ? rodRenderer.bounds.size.y : 1f;
+            if (originalWorldHeight <= 0.0001f) originalWorldHeight = 1f;
+
+            float desiredWorldHeight = maxBalls * ballHeight;
+            float scaleMultiplierY = desiredWorldHeight / originalWorldHeight;
+
+            transform.localScale = new Vector3(originalScale.x, originalScale.y * scaleMultiplierY, originalScale.z);
+
+            // reposition on base
+            if (rodRenderer != null && manager.baseObject != null)
+            {
+                rodRenderer = GetComponent<Renderer>();
+                float rodBottom = rodRenderer.bounds.min.y;
+                float baseTopY = manager.baseObject.GetComponent<Renderer>().bounds.max.y;
+                float offset = baseTopY - rodBottom;
+                transform.position += Vector3.up * offset;
+            }
         }
     }
+
 
     public float GetBallHeight() => ballHeight;
 }
