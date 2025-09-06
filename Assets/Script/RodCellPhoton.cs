@@ -1,9 +1,8 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 
 /// <summary>
 /// Rod cell used in Photon online mode. Contains grid coords and helper functions for the manager.
-/// When clicked locally, the rod will request placement via the GameManagerPhoton (client -> Master).
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class RodCellPhoton : MonoBehaviour
@@ -16,8 +15,8 @@ public class RodCellPhoton : MonoBehaviour
     [HideInInspector] public GameManagerPhoton gameManager;
     [HideInInspector] public int gridX, gridZ;
 
-    // used for static drop helper
     private static MonoBehaviour coroutineHost;
+    private Vector3 originalScale;
 
     public void Setup(GameManagerPhoton manager, int x, int z)
     {
@@ -25,23 +24,17 @@ public class RodCellPhoton : MonoBehaviour
         gridX = x;
         gridZ = z;
 
-        // seed coroutine host for static helper if not set
         if (coroutineHost == null) coroutineHost = manager;
 
-        // Get ball height using a temp of player1Ball (like before)
+        // Calculate ball height from prefab
         GameObject temp = null;
-        if (manager != null)
+        if (manager != null && manager.player1BallPrefab != null)
         {
-            // try to load from Resources (we expect prefab names to be in Resources)
-            GameObject prefab = Resources.Load<GameObject>(manager.player1BallPrefabName);
-            if (prefab != null) temp = Instantiate(prefab);
-            else temp = null;
-        }
-
-        if (temp != null)
-        {
+            temp = Instantiate(manager.player1BallPrefab);
             Renderer r = temp.GetComponent<Renderer>();
-            ballHeight = (r != null) ? r.bounds.size.y + spacingPadding : 0.2f;
+            ballHeight = (r != null) ? r.bounds.size.y : 0.2f;
+            ballHeight += spacingPadding;
+
             Destroy(temp);
         }
         else
@@ -50,52 +43,36 @@ public class RodCellPhoton : MonoBehaviour
         }
 
         maxBalls = manager.maxBallsPerRod;
+        originalScale = transform.localScale;
 
-        // scale rod height to fit capacity (same as local)
-        Renderer rodRenderer = GetComponent<Renderer>();
-        float currentHeight = rodRenderer.bounds.size.y;
+        // ✅ Correct rod height
         float targetHeight = maxBalls * ballHeight;
-        float scaleFactor = targetHeight / currentHeight;
-        transform.localScale = new Vector3(transform.localScale.x, transform.localScale.y * scaleFactor, transform.localScale.z);
+        transform.localScale = new Vector3(originalScale.x, targetHeight, originalScale.z);
 
-        // position so it sits on base
+        // ✅ Reposition so bottom stays on the base
+        Renderer rodRenderer = GetComponent<Renderer>();
+        float rodBottom = rodRenderer.bounds.min.y;
         float baseTopY = manager.baseObject.GetComponent<Renderer>().bounds.max.y;
-        float currentBottomY = rodRenderer.bounds.min.y;
-        float offset = baseTopY - currentBottomY;
+        float offset = baseTopY - rodBottom;
         transform.position += Vector3.up * offset;
     }
 
-    // Called locally by raycast when clicked; we just request placement via manager (which will send RPC to Master)
-    public void RequestPlaceLocal()
-    {
-        if (gameManager == null) return;
-        // Manager handles checking turn / locking / sending to Master
-        // But as convenience we call the GameManager's Update flow by sending RPC in GameManager (see manager update uses raycast)
-        // Alternatively you can call manager.RequestPlaceByRod(this) if you implement it; current design uses GameManager's raycast in Update.
-    }
-
-    // Return spawn world above target Y (so ball will animate dropping)
     public Vector3 GetSpawnPosition(int yIndex)
     {
         Renderer rodRenderer = GetComponent<Renderer>();
         float rodBottomY = rodRenderer.bounds.min.y;
-        float yOffset = yIndex * ballHeight + (ballHeight / 2f);
-        // spawn a bit above
-        return new Vector3(transform.position.x, rodBottomY + yOffset + 2f, transform.position.z);
+
+        // place bead centers evenly spaced from bottom to top
+        float yOffset = (yIndex + 0.5f) * ballHeight;
+        return new Vector3(transform.position.x, rodBottomY + yOffset, transform.position.z);
     }
 
-    // Smooth drop helper (static): launch coroutine to move a transform to target
     public static void StartSmoothDropStatic(Transform ballTransform, Vector3 target)
     {
         if (coroutineHost != null)
-        {
             coroutineHost.StartCoroutine(SmoothDropCoroutine(ballTransform, target));
-        }
-        else
-        {
-            // fallback immediate placement
-            if (ballTransform != null) ballTransform.position = target;
-        }
+        else if (ballTransform != null)
+            ballTransform.position = target;
     }
 
     private static IEnumerator SmoothDropCoroutine(Transform ball, Vector3 target)
@@ -111,38 +88,29 @@ public class RodCellPhoton : MonoBehaviour
         if (ball != null) ball.position = target;
     }
 
-    // Called by the manager when recalculating counts after gravity
     public void RecalculateBallCount(int playerId, int x, int z, GameManagerPhoton manager)
     {
         int count = 0;
         for (int y = 0; y < manager.maxBallsPerRod; y++)
         {
-            if (manager.board[x, y, z] != 0)
-            {
-                count = y + 1;
-            }
+            if (manager.board[x, y, z] != 0) count = y + 1;
         }
         currentBallCount = count;
 
+        // reset scale if maxBalls changed
         if (maxBalls != manager.maxBallsPerRod)
         {
             maxBalls = manager.maxBallsPerRod;
+            float targetHeight = maxBalls * ballHeight;
+            transform.localScale = new Vector3(originalScale.x, targetHeight, originalScale.z);
 
             Renderer rodRenderer = GetComponent<Renderer>();
-            float currentHeight = rodRenderer.bounds.size.y;
-            float targetHeight = maxBalls * ballHeight;
-
-            float scaleFactor = targetHeight / currentHeight;
-            Vector3 oldScale = transform.localScale;
-            transform.localScale = new Vector3(oldScale.x, oldScale.y * scaleFactor, oldScale.z);
-
-            float heightDiff = targetHeight - currentHeight;
-            transform.position += Vector3.up * (heightDiff / 2f);
+            float rodBottom = rodRenderer.bounds.min.y;
+            float baseTopY = manager.baseObject.GetComponent<Renderer>().bounds.max.y;
+            float offset = baseTopY - rodBottom;
+            transform.position += Vector3.up * offset;
         }
     }
 
-    public float GetBallHeight()
-    {
-        return ballHeight;
-    }
+    public float GetBallHeight() => ballHeight;
 }

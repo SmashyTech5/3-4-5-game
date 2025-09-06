@@ -153,36 +153,42 @@ public class MainMenu : MonoBehaviourPunCallbacks
     #region Photon callbacks
     public override void OnConnectedToMaster()
     {
+        if (cancelledByBack) return; // 👈 skip auto-join if back was pressed
+
         SetStatus("Connected! Searching for room...");
         PhotonNetwork.JoinRandomRoom();
     }
 
+
     public override void OnJoinRandomFailed(short returnCode, string message)
     {
-        SetStatus("No rooms found. Creating room...");
+        SetStatus("No available rooms, creating a new one...");
         RoomOptions opts = new RoomOptions { MaxPlayers = maxPlayersPerRoom };
         PhotonNetwork.CreateRoom(null, opts);
     }
 
     public override void OnJoinedRoom()
     {
-        isSearchingForRoom = false; // 👈 done searching
-        SetStatus($"Joined room. Waiting for player {PhotonNetwork.CurrentRoom.PlayerCount}/{maxPlayersPerRoom}...");
+        isSearchingForRoom = false;
+        SetStatus($"Joined room ({PhotonNetwork.CurrentRoom.PlayerCount}/{maxPlayersPerRoom})");
+
         CheckPlayersInRoom();
     }
 
     public override void OnPlayerEnteredRoom(Player newPlayer)
     {
-        SetStatus($"Player joined! ({PhotonNetwork.CurrentRoom.PlayerCount}/{maxPlayersPerRoom})");
+        SetStatus($"Player joined ({PhotonNetwork.CurrentRoom.PlayerCount}/{maxPlayersPerRoom})");
         CheckPlayersInRoom();
     }
 
     public override void OnDisconnected(DisconnectCause cause)
     {
-        isSearchingForRoom = false; // 👈 reset on disconnect
-        SetStatus("Disconnected: " + cause.ToString());
-        if (loadingPanel != null) loadingPanel.SetActive(false);
+        isSearchingForRoom = false;
+        cancelledByBack = false; // 👈 reset
+        SetStatus("Disconnected: " + cause);
+        loadingPanel?.SetActive(false);
     }
+
     #endregion
 
     void CheckPlayersInRoom()
@@ -245,70 +251,76 @@ public class MainMenu : MonoBehaviourPunCallbacks
 
     public void OnWatchAdForCoinsButton()
     {
-       
-        if (Application.internetReachability == NetworkReachability.NotReachable)
-         {
-             Debug.LogWarning("No internet connection. Cannot show ad.");
+        // 🔹 TEMPORARY: skip ad check, just give coins directly
+        playerCoins += 700;
+        PlayerPrefs.SetInt("PlayerCoins", playerCoins);
+        PlayerPrefs.Save();
+        UpdateCoinsUI();
 
-             // Close the "Not Enough Coins" popup if it's open
-             if (notEnoughCoinsPopup != null)
-                 notEnoughCoinsPopup.SetActive(false);
+        if (notEnoughCoinsPopup != null)
+            notEnoughCoinsPopup.SetActive(false);
 
-             // Show the "No Internet" popup
-             if (noInternetPopup != null)
-                 noInternetPopup.SetActive(true);
+        Debug.Log("[CHEAT] Player rewarded with 50 coins instantly! (No ad shown)");
 
-             return;
-         }
+      /*   if (Application.internetReachability == NetworkReachability.NotReachable)
+           {
+               Debug.LogWarning("No internet connection. Cannot show ad.");
 
-         // Player has internet → try to show rewarded ad
-         AdManager.Instance.ShowRewardedAdvertisement(() =>
-         {
-             playerCoins += 50;
-             PlayerPrefs.SetInt("PlayerCoins", playerCoins);
-             PlayerPrefs.Save();
-             UpdateCoinsUI();
+               // Close the "Not Enough Coins" popup if it's open
+               if (notEnoughCoinsPopup != null)
+                   notEnoughCoinsPopup.SetActive(false);
 
-             if (notEnoughCoinsPopup != null)
-                 notEnoughCoinsPopup.SetActive(false);
+               // Show the "No Internet" popup
+               if (noInternetPopup != null)
+                   noInternetPopup.SetActive(true);
 
-             Debug.Log("Player rewarded with 50 coins!");
-         },
-         () =>
-         {
-             Debug.LogWarning("Rewarded ad not ready yet!");
-         });
+               return;
+           }
+
+           // Player has internet → try to show rewarded ad
+           AdManager.Instance.ShowRewardedAdvertisement(() =>
+           {
+               playerCoins += 50;
+               PlayerPrefs.SetInt("PlayerCoins", playerCoins);
+               PlayerPrefs.Save();
+               UpdateCoinsUI();
+
+               if (notEnoughCoinsPopup != null)
+                   notEnoughCoinsPopup.SetActive(false);
+
+               Debug.Log("Player rewarded with 50 coins!");
+           },
+           () =>
+           {
+               Debug.LogWarning("Rewarded ad not ready yet!");
+           });*/
     }
     // Assign this to your NEW button in the Inspector
     public void OnPvpButton()
     {
-        // 🔹 Check coins first
         if (playerCoins < 100)
         {
-            if (notEnoughCoinsPopup != null) notEnoughCoinsPopup.SetActive(true);
+            notEnoughCoinsPopup?.SetActive(true);
             return;
         }
 
-        // 🔹 Check internet
         if (Application.internetReachability == NetworkReachability.NotReachable)
         {
-            if (noInternetPopup != null) noInternetPopup.SetActive(true);
+            noInternetPopup?.SetActive(true);
             return;
         }
 
-        // 🔹 Continue with Photon flow
         SetStatus("Connecting to server...");
-        if (loadingPanel != null) loadingPanel.SetActive(true);
-
+        loadingPanel?.SetActive(true);
         isSearchingForRoom = true;
 
-        // Temporarily change the scene name before we connect
+        // Set scene name for later
         multiplayerSceneName = pvpSceneName;
 
-        if (PhotonNetwork.IsConnected)
-            PhotonNetwork.JoinRandomRoom();
-        else
+        if (!PhotonNetwork.IsConnected)
             PhotonNetwork.ConnectUsingSettings();
+        else
+            PhotonNetwork.JoinRandomRoom(); // safe only if already on Master
     }
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
@@ -324,7 +336,7 @@ public class MainMenu : MonoBehaviourPunCallbacks
 
     public void OnBackButton()
     {
-        // ✅ Case A: Cancel AI load
+        // Cancel AI load
         if (aiLoadRequested)
         {
             aiLoadRequested = false;
@@ -333,64 +345,56 @@ public class MainMenu : MonoBehaviourPunCallbacks
                 StopCoroutine(aiLoadCoroutine);
                 aiLoadCoroutine = null;
             }
-
-            // Restore UI
-            if (loadingPanel != null) loadingPanel.SetActive(false);
-            if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+            loadingPanel?.SetActive(false);
+            mainMenuPanel?.SetActive(true);
             ClearStatus();
-
             Debug.Log("AI load cancelled.");
             return;
         }
 
-        // ✅ Case B: Cancel Multiplayer Search / Room
+        // Cancel Multiplayer search
         if (isSearchingForRoom)
         {
             isSearchingForRoom = false;
+            cancelledByBack = true; // 👈 prevent callbacks from auto-joining rooms
 
-            // Restore UI immediately
-            if (loadingPanel != null) loadingPanel.SetActive(false);
-            if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+            loadingPanel?.SetActive(false);
+            mainMenuPanel?.SetActive(true);
             ClearStatus();
 
-            // Refund coins ONLY if they were deducted already
+            // Refund coins if deducted
             if (!multiplayerStarted && coinsDeductedForMultiplayer)
             {
                 playerCoins += 100;
-                coinsDeductedForMultiplayer = false; // reset flag
-
+                coinsDeductedForMultiplayer = false;
                 PlayerPrefs.SetInt("PlayerCoins", playerCoins);
                 PlayerPrefs.SetInt("PotCoins", 0);
                 PlayerPrefs.Save();
                 UpdateCoinsUI();
-
-                Debug.Log("Multiplayer cancelled before start → coins refunded.");
             }
 
-            // If already inside a room → leave it
             if (PhotonNetwork.InRoom)
             {
                 PhotonNetwork.LeaveRoom();
-                Debug.Log("Leaving Photon room due to Back pressed.");
+                Debug.Log("Leaving Photon room (Back pressed).");
             }
             else if (PhotonNetwork.IsConnected)
             {
                 PhotonNetwork.Disconnect();
-                Debug.Log("Disconnecting from Photon due to Back pressed.");
+                Debug.Log("Disconnecting from Photon (Back pressed).");
             }
-
             return;
         }
 
-        // ✅ Case C: Default (not loading anything) → just restore UI
-        if (loadingPanel != null) loadingPanel.SetActive(false);
-        if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+        // Default
+        loadingPanel?.SetActive(false);
+        mainMenuPanel?.SetActive(true);
         ClearStatus();
-
-        Debug.Log("Back → default main menu restore.");
     }
 
 
+
+    private bool cancelledByBack = false;
 
 
 }

@@ -53,6 +53,11 @@ MonoBehaviour:
   - RPC_MoveBallTo
   - RPC_RejectRequest
   - RPC_SwitchTurn
+  - RPC_DeclareTie
+  - RPC_AddScore
+  - RPC_BroadcastDestroyAndDrop
+  - RPC_RegisterNetworkedBall
+  - RPC_SetBallPosition
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 1
